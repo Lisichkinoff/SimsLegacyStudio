@@ -44,6 +44,11 @@ namespace SimsLegacy
             }
         }
 
+        internal sealed class AccessException : IOException
+        {
+            internal AccessException() : base("Не удалось открыть закрытый релиз. Проверьте ключ обновлений.") { }
+        }
+
         internal static string LoadToken(string path)
         {
             if (!File.Exists(path)) return null;
@@ -158,10 +163,10 @@ namespace SimsLegacy
             {
                 using (var response = ex.Response as HttpWebResponse)
                 {
-                    if (response != null && (response.StatusCode == HttpStatusCode.Unauthorized ||
-                        response.StatusCode == HttpStatusCode.Forbidden || response.StatusCode == HttpStatusCode.NotFound))
-                        throw new InvalidOperationException(
-                            "GitHub не открыл релиз. Проверьте ключ, доступ к репозиторию и наличие опубликованного релиза.");
+                    if (token != null && response != null && (response.StatusCode == HttpStatusCode.Unauthorized ||
+                        response.StatusCode == HttpStatusCode.NotFound ||
+                        (response.StatusCode == HttpStatusCode.Forbidden && response.Headers["X-RateLimit-Remaining"] != "0")))
+                        throw new AccessException();
                 }
                 throw new IOException("Не удалось получить обновления с GitHub. Проверьте подключение и попробуйте ещё раз.");
             }

@@ -18,10 +18,6 @@ namespace SimsLegacy
             var menu = CreateContextMenu();
             menu.Items.Add("Версия " + AppUpdates.CurrentVersion.ToString(3)).Enabled = false;
             menu.Items.Add("Проверить обновления", null, (s, e) => CheckUpdates(true)).Enabled = !checkingUpdates;
-            menu.Items.Add("Доступ к GitHub…", null, (s, e) =>
-            {
-                if (ConfigureUpdates()) CheckUpdates(true);
-            }).Enabled = !checkingUpdates;
             menu.Closed += (s, e) =>
             {
                 if (IsHandleCreated && !IsDisposed) BeginInvoke(new Action(menu.Dispose));
@@ -30,15 +26,14 @@ namespace SimsLegacy
             menu.Show(anchor, 0, anchor.Height);
         }
 
-        private bool ConfigureUpdates()
+        private bool ConfigureUpdates(string message = null)
         {
-            using (var dialog = new Dialog("Доступ к GitHub", 585, 365))
+            using (var dialog = new Dialog("Подключить обновления", 585, message == null ? 405 : 455))
             {
+                if (message != null) dialog.Note(message, 42);
                 dialog.Note("Для обновлений из закрытого репозитория " + AppUpdates.Repository +
                     " создайте fine-grained token. В Repository access выберите этот репозиторий, а в Permissions укажите Contents → Read-only.", 73);
-                var link = new LinkLabel { Text = "Создать ключ на GitHub", Height = 25, Font = Theme.Font(14),
-                    LinkColor = Theme.TreeAccent, VisitedLinkColor = Theme.TreeAccent, ActiveLinkColor = Theme.Green };
-                link.LinkClicked += (s, e) =>
+                dialog.Add(Ui.Button("Создать ключ на GitHub", "arrow", 221, 36, () =>
                 {
                     try
                     {
@@ -50,9 +45,8 @@ namespace SimsLegacy
                     {
                         ShowUpdateError("Не удалось открыть GitHub в браузере.");
                     }
-                };
-                dialog.Add(link);
-                var key = dialog.Field("Ключ GitHub", "");
+                }));
+                var key = dialog.Field("Ключ обновлений", "");
                 key.UseSystemPasswordChar = true;
                 key.MaxLength = 512;
                 dialog.Note("Ключ шифруется средствами Windows. Чтобы отключить проверки при запуске, сохраните пустое поле.", 48);
@@ -86,8 +80,7 @@ namespace SimsLegacy
                 catch (Exception)
                 {
                     if (!manual) return;
-                    ShowUpdateError("Не удалось прочитать сохранённый ключ. Укажите ключ снова.");
-                    if (!ConfigureUpdates()) return;
+                    if (!ConfigureUpdates("Не удалось прочитать сохранённый ключ. Укажите ключ снова.")) return;
                     token = AppUpdates.LoadToken(UpdateTokenPath);
                 }
                 if (string.IsNullOrEmpty(token))
@@ -97,7 +90,24 @@ namespace SimsLegacy
                 }
                 if (manual) status.Text = "Проверяем обновления…";
 
-                var update = await Task.Run(() => AppUpdates.Check(token));
+                AppUpdates.Update update = null;
+                string accessError = null;
+                try { update = await Task.Run(() => AppUpdates.Check(token)); }
+                catch (AppUpdates.AccessException ex)
+                {
+                    if (!manual || IsDisposed || Disposing) throw;
+                    accessError = ex.Message;
+                }
+                if (accessError != null)
+                {
+                    if (!ConfigureUpdates(accessError))
+                    {
+                        status.Text = "Обновления требуют действующего ключа";
+                        return;
+                    }
+                    token = AppUpdates.LoadToken(UpdateTokenPath);
+                    update = await Task.Run(() => AppUpdates.Check(token));
+                }
                 if (IsDisposed || Disposing) return;
                 if (update == null)
                 {
