@@ -22,10 +22,10 @@ namespace SimsLegacy
             directory = StagingDirectory(executable, id);
         }
 
-        internal void Download(string token)
+        internal void Download()
         {
             Directory.CreateDirectory(directory);
-            AppUpdates.Download(update, token, Path.Combine(directory, PayloadName));
+            AppUpdates.Download(update, Path.Combine(directory, PayloadName));
         }
 
         internal void Start()

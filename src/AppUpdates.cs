@@ -3,7 +3,6 @@ using System.IO;
 using System.Net;
 using System.Reflection;
 using System.Security.Cryptography;
-using System.Text;
 using System.Text.RegularExpressions;
 using System.Web.Script.Serialization;
 
@@ -16,7 +15,6 @@ namespace SimsLegacy
         internal static readonly Version CurrentVersion = typeof(AppUpdates).Assembly.GetName().Version;
         private const string ReleaseApi = "https://api.github.com/repos/" + Repository + "/releases";
         private const long MaxAssetSize = 64 * 1024 * 1024;
-        private static readonly byte[] TokenPurpose = Encoding.UTF8.GetBytes("SimsLegacyStudio:" + Repository);
 
         internal sealed class Release
         {
@@ -26,7 +24,6 @@ namespace SimsLegacy
 
         internal sealed class Asset
         {
-            public long id { get; set; }
             public string name { get; set; }
             public long size { get; set; }
             public string digest { get; set; }
@@ -44,22 +41,10 @@ namespace SimsLegacy
             }
         }
 
-        internal sealed class AccessException : IOException
-        {
-            internal AccessException() : base("Не удалось открыть закрытый релиз. Проверьте доступ аккаунта GitHub.") { }
-        }
-
-        internal static string LoadLegacyToken(string path)
-        {
-            if (!File.Exists(path)) return null;
-            return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(File.ReadAllText(path)), TokenPurpose,
-                DataProtectionScope.CurrentUser));
-        }
-
-        internal static Update Check(string token)
+        internal static Update Check()
         {
             Release release;
-            using (var response = Send(new Uri(ReleaseApi + "/latest"), token, "application/vnd.github+json"))
+            using (var response = Send(new Uri(ReleaseApi + "/latest"), "application/vnd.github+json"))
             using (var reader = new StreamReader(response.GetResponseStream()))
                 release = new JavaScriptSerializer().Deserialize<Release>(reader.ReadToEnd());
 
@@ -71,17 +56,18 @@ namespace SimsLegacy
             if (version <= CurrentVersion) return null;
 
             foreach (var asset in release.assets ?? new Asset[0])
-                if (asset != null && asset.name == AssetName && asset.id > 0 && asset.size > 0 &&
+                if (asset != null && asset.name == AssetName && asset.size > 0 &&
                     asset.size <= MaxAssetSize && IsDigest(asset.digest))
                     return new Update(version, asset);
 
             throw new InvalidDataException("В новом релизе отсутствует EXE с контрольной суммой SHA-256.");
         }
 
-        internal static void Download(Update update, string token, string path)
+        internal static void Download(Update update, string path)
         {
-            var endpoint = new Uri(ReleaseApi + "/assets/" + update.Asset.id.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            using (var response = OpenAsset(endpoint, token))
+            var endpoint = new Uri("https://github.com/" + Repository + "/releases/download/v" +
+                update.Version.ToString(3) + "/" + AssetName);
+            using (var response = OpenAsset(endpoint))
             using (var source = response.GetResponseStream())
             using (var target = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
@@ -121,9 +107,9 @@ namespace SimsLegacy
             return value != null && Regex.IsMatch(value, @"\Asha256:[a-fA-F0-9]{64}\z");
         }
 
-        private static HttpWebResponse OpenAsset(Uri uri, string token)
+        private static HttpWebResponse OpenAsset(Uri uri)
         {
-            var response = Send(uri, token, "application/octet-stream");
+            var response = Send(uri, "application/octet-stream");
             if (response.StatusCode == HttpStatusCode.OK) return response;
             using (response)
             {
@@ -133,11 +119,11 @@ namespace SimsLegacy
                     redirect.Scheme != Uri.UriSchemeHttps || !redirect.IsDefaultPort || redirect.UserInfo.Length != 0 ||
                     (redirect.Host != "release-assets.githubusercontent.com" && redirect.Host != "objects.githubusercontent.com"))
                     throw new InvalidDataException("GitHub вернул неизвестный адрес файла обновления.");
-                return Send(redirect, null, "application/octet-stream");
+                return Send(redirect, "application/octet-stream");
             }
         }
 
-        private static HttpWebResponse Send(Uri uri, string token, string accept)
+        private static HttpWebResponse Send(Uri uri, string accept)
         {
             ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
             var request = (HttpWebRequest)WebRequest.Create(uri);
@@ -146,20 +132,16 @@ namespace SimsLegacy
             request.Accept = accept;
             request.Timeout = 15000;
             request.ReadWriteTimeout = 15000;
-            if (token != null)
-            {
-                request.Headers[HttpRequestHeader.Authorization] = "Bearer " + token;
+            if (uri.Host == "api.github.com")
                 request.Headers["X-GitHub-Api-Version"] = "2022-11-28";
-            }
             try { return (HttpWebResponse)request.GetResponse(); }
             catch (WebException ex)
             {
                 using (var response = ex.Response as HttpWebResponse)
                 {
-                    if (token != null && response != null && (response.StatusCode == HttpStatusCode.Unauthorized ||
-                        response.StatusCode == HttpStatusCode.NotFound ||
-                        (response.StatusCode == HttpStatusCode.Forbidden && response.Headers["X-RateLimit-Remaining"] != "0")))
-                        throw new AccessException();
+                    if (response != null && ((int)response.StatusCode == 429 ||
+                        response.Headers["X-RateLimit-Remaining"] == "0"))
+                        throw new IOException("GitHub временно ограничил число запросов. Повторите проверку позже.");
                 }
                 throw new IOException("Не удалось получить обновления с GitHub. Проверьте подключение и попробуйте ещё раз.");
             }
