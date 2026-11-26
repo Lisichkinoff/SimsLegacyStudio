@@ -35,9 +35,9 @@ namespace SimsLegacy
             get
             {
                 var parameters = base.CreateParams;
-                const int systemMenu = 0x00080000, thickFrame = 0x00040000, minMaxBoxes = 0x00030000;
-                parameters.Style |= systemMenu;
-                if (resizable) parameters.Style |= thickFrame | minMaxBoxes;
+                const int caption = 0x00C00000, systemMenu = 0x00080000, thickFrame = 0x00040000, minMaxBoxes = 0x00030000;
+                parameters.Style &= ~(caption | systemMenu | thickFrame | minMaxBoxes);
+                if (resizable) parameters.Style |= systemMenu | thickFrame | minMaxBoxes;
                 return parameters;
             }
         }
@@ -113,10 +113,17 @@ namespace SimsLegacy
 
         protected override void WndProc(ref Message message)
         {
-            const int calculateFrame = 0x83, hitTest = 0x84, sizeLimits = 0x24;
-            if (message.Msg == calculateFrame && message.WParam != IntPtr.Zero)
+            const int calculateFrame = 0x83, hitTest = 0x84, framePaint = 0x85, frameActivation = 0x86, sizeLimits = 0x24;
+            if (message.Msg == calculateFrame || (message.Msg == framePaint && WindowState != FormWindowState.Minimized))
             {
                 message.Result = IntPtr.Zero;
+                return;
+            }
+            // Let Windows change activation without drawing a second caption over the client title bar.
+            if (message.Msg == frameActivation && WindowState != FormWindowState.Minimized)
+            {
+                message.LParam = new IntPtr(-1);
+                DefWndProc(ref message);
                 return;
             }
             base.WndProc(ref message);

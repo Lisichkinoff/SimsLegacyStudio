@@ -176,7 +176,7 @@ namespace SimsLegacy
             bool narrow = w < 920;
             int y = narrow ? 68 : 43;
             add.Location = new Point(w - add.Width, y);
-            export.Location = new Point(add.Left - export.Width - 7, y);
+            export.Location = new Point(preview ? w - export.Width : add.Left - export.Width - 7, y);
             import.Location = new Point(export.Left - import.Width - 7, y);
             gameImport.Location = new Point(import.Left - gameImport.Width - 7, y);
             rename.Location = new Point(Math.Max(4, gameImport.Left - 46), y);
@@ -197,8 +197,10 @@ namespace SimsLegacy
             profile.SetBounds(boardWidth + 15, 0, profileWidth, h);
             alternative.SetBounds(0, 0, w, h);
             statusBar.SetBounds(left + 3, ClientSize.Height - 37, w - 6, 28);
-            status.SetBounds(0, 0, Math.Max(1, w - 285), 28);
-            count.SetBounds(Math.Max(0, w - 280), 0, 280, 28);
+            int countWidth = Math.Min(280, statusBar.ClientSize.Width);
+            int countLeft = Math.Max(0, statusBar.ClientSize.Width - countWidth - 6);
+            status.SetBounds(0, 0, Math.Max(1, countLeft - 12), 28);
+            count.SetBounds(countLeft, 0, countWidth, 28);
         }
 
         private void RefreshTree(bool fit)

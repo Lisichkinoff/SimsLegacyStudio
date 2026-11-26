@@ -222,6 +222,7 @@ namespace SimsLegacy
         public FamilyCanvas()
         {
             DoubleBuffered = true; TabStop = true; Cursor = Cursors.Hand;
+            SetStyle(ControlStyles.ResizeRedraw, true);
             AccessibleName = "Семейное древо";
             minus = Tool("minus", "Уменьшить масштаб", () => ZoomAt(.83f, Center));
             plus = Tool("plus", "Увеличить масштаб", () => ZoomAt(1.2f, Center));

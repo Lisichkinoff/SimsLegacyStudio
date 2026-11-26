@@ -369,7 +369,7 @@ namespace SimsLegacy
                 var grid = dialog.Toggle("Точечная сетка на фоне", tree.Grid);
                 var labels = dialog.Toggle("Имена и подписи", tree.Labels);
                 dialog.Caption("Палитра фона");
-                Color background = Theme.CanvasBackground(tree.Background), accent = Theme.CanvasAccent(tree.Accent);
+                Color background = Theme.ColorOr(tree.Background, Theme.TreeBackground), accent = Theme.CanvasAccent(tree.Accent);
                 bool backgroundChanged = false, accentChanged = false;
                 string picture = tree.Backdrop;
                 var colors = new FlowLayoutPanel { Height = 42, WrapContents = false };
@@ -388,20 +388,20 @@ namespace SimsLegacy
                     {
                         background = color;
                         backgroundChanged = true;
-                        custom.Surface = color;
-                        custom.ForeColor = Theme.CanvasText(color);
+                        custom.Surface = Theme.CanvasBackground(color);
+                        custom.ForeColor = Theme.CanvasText(custom.Surface);
                         custom.Invalidate();
                     });
                     swatch.Surface = color;
                     swatch.AccessibleName = names[i];
                     colors.Controls.Add(swatch);
                 }
-                custom.Surface = background;
-                custom.ForeColor = Theme.CanvasText(background);
+                custom.Surface = Theme.CanvasBackground(background);
+                custom.ForeColor = Theme.CanvasText(custom.Surface);
                 custom.Click += (s, e) =>
                 {
-                    custom.Surface = background;
-                    custom.ForeColor = Theme.CanvasText(background);
+                    custom.Surface = Theme.CanvasBackground(background);
+                    custom.ForeColor = Theme.CanvasText(custom.Surface);
                     custom.Invalidate();
                 };
                 colors.Controls.Add(custom);

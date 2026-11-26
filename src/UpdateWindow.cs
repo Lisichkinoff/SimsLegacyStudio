@@ -1,7 +1,6 @@
 using System;
-using System.Diagnostics;
 using System.IO;
-using System.Text.RegularExpressions;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -11,7 +10,7 @@ namespace SimsLegacy
     {
         private bool checkingUpdates, downloadingUpdate;
         private UpdateInstaller pendingUpdate;
-        private string UpdateTokenPath { get { return Path.Combine(Path.GetDirectoryName(path), "update-access.dat"); } }
+        private string LegacyUpdateTokenPath { get { return Path.Combine(Path.GetDirectoryName(path), "update-access.dat"); } }
 
         private void ShowUpdatesMenu(Control anchor)
         {
@@ -26,46 +25,27 @@ namespace SimsLegacy
             menu.Show(anchor, 0, anchor.Height);
         }
 
-        private bool ConfigureUpdates(string message = null)
+        private Tuple<AppUpdates.Update, string> ReadRelease(string manager)
         {
-            using (var dialog = new Dialog("Подключить обновления", 585, message == null ? 405 : 455))
-            {
-                if (message != null) dialog.Note(message, 42);
-                dialog.Note("Для обновлений из закрытого репозитория " + AppUpdates.Repository +
-                    " создайте fine-grained token. В Repository access выберите этот репозиторий, а в Permissions укажите Contents → Read-only.", 73);
-                dialog.Add(Ui.Button("Создать ключ на GitHub", "arrow", 221, 36, () =>
-                {
-                    try
-                    {
-                        using (Process.Start(new ProcessStartInfo("https://github.com/settings/personal-access-tokens/new" +
-                            "?name=Sims+Legacy+Studio+Updates&target_name=" + AppUpdates.Repository.Split('/')[0] +
-                            "&contents=read") { UseShellExecute = true })) { }
-                    }
-                    catch (System.ComponentModel.Win32Exception)
-                    {
-                        ShowUpdateError("Не удалось открыть GitHub в браузере.");
-                    }
-                }));
-                var key = dialog.Field("Ключ обновлений", "");
-                key.UseSystemPasswordChar = true;
-                key.MaxLength = 512;
-                dialog.Note("Ключ шифруется средствами Windows. Чтобы отключить проверки при запуске, сохраните пустое поле.", 48);
-                bool enabled = false;
-                dialog.ValidateAndSave = () =>
-                {
-                    string token = key.Text.Trim();
-                    if (token.Length != 0 && !Regex.IsMatch(token, @"\Agithub_pat_[a-zA-Z0-9_]+\z"))
-                        throw new InvalidDataException("Вставьте fine-grained token, начинающийся с github_pat_.");
-                    try
-                    {
-                        enabled = token.Length != 0;
-                        if (enabled) AppUpdates.SaveToken(UpdateTokenPath, token);
-                        else File.Delete(UpdateTokenPath);
-                    }
-                    catch (Exception ex) { throw new InvalidDataException("Не удалось сохранить настройки. " + ex.Message); }
-                };
-                return dialog.ShowDialog(this) == DialogResult.OK && enabled;
-            }
+            var credential = GitHubSignIn.ReadExisting(manager);
+            var release = TryReadRelease(credential);
+            if (release != null) return release;
+
+            // Older installations may already have a working credential saved for this repository.
+            string legacy;
+            try { legacy = AppUpdates.LoadLegacyToken(LegacyUpdateTokenPath); }
+            catch (IOException) { return null; }
+            catch (UnauthorizedAccessException) { return null; }
+            catch (FormatException) { return null; }
+            catch (CryptographicException) { return null; }
+            return legacy == credential ? null : TryReadRelease(legacy);
+        }
+
+        private static Tuple<AppUpdates.Update, string> TryReadRelease(string credential)
+        {
+            if (String.IsNullOrEmpty(credential)) return null;
+            try { return Tuple.Create(AppUpdates.Check(credential), credential); }
+            catch (AppUpdates.AccessException) { return null; }
         }
 
         private async void CheckUpdates(bool manual)
@@ -75,40 +55,34 @@ namespace SimsLegacy
             checkingUpdates = true;
             try
             {
-                string token;
-                try { token = AppUpdates.LoadToken(UpdateTokenPath); }
-                catch (Exception)
+                if (manual) status.Text = "Проверяем обновления…";
+                string manager = GitHubSignIn.FindCredentialManager();
+                var release = await Task.Run(() => ReadRelease(manager));
+                if (IsDisposed || Disposing) return;
+                if (release == null)
                 {
                     if (!manual) return;
-                    if (!ConfigureUpdates("Не удалось прочитать сохранённый ключ. Укажите ключ снова.")) return;
-                    token = AppUpdates.LoadToken(UpdateTokenPath);
-                }
-                if (string.IsNullOrEmpty(token))
-                {
-                    if (!manual || !ConfigureUpdates()) return;
-                    token = AppUpdates.LoadToken(UpdateTokenPath);
-                }
-                if (manual) status.Text = "Проверяем обновления…";
-
-                AppUpdates.Update update = null;
-                string accessError = null;
-                try { update = await Task.Run(() => AppUpdates.Check(token)); }
-                catch (AppUpdates.AccessException ex)
-                {
-                    if (!manual || IsDisposed || Disposing) throw;
-                    accessError = ex.Message;
-                }
-                if (accessError != null)
-                {
-                    if (!ConfigureUpdates(accessError))
+                    status.Text = "Для обновлений нужен доступ к GitHub";
+                    if (manager == null)
                     {
-                        status.Text = "Обновления требуют действующего ключа";
+                        ShowUpdateError("Установите Git for Windows с Git Credential Manager, затем повторите проверку обновлений.");
                         return;
                     }
-                    token = AppUpdates.LoadToken(UpdateTokenPath);
-                    update = await Task.Run(() => AppUpdates.Check(token));
+                    if (AppNotice.Show(this, "Войти в GitHub через браузер для скачивания закрытых обновлений?",
+                        "Обновления", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+                    status.Text = "Ожидаем вход в GitHub…";
+                    bool signedIn = await Task.Run(() => GitHubSignIn.OpenBrowserSignIn(manager));
+                    if (IsDisposed || Disposing) return;
+                    if (!signedIn)
+                    {
+                        status.Text = "Вход в GitHub не завершён";
+                        return;
+                    }
+                    release = await Task.Run(() => ReadRelease(manager));
+                    if (IsDisposed || Disposing) return;
+                    if (release == null) throw new AppUpdates.AccessException();
                 }
-                if (IsDisposed || Disposing) return;
+                var update = release.Item1;
                 if (update == null)
                 {
                     if (manual) status.Text = "Установлена последняя версия " + AppUpdates.CurrentVersion.ToString(3);
@@ -123,7 +97,7 @@ namespace SimsLegacy
                 downloadingUpdate = true;
                 status.Text = "Скачиваем обновление " + newVersion + "…";
                 installer = new UpdateInstaller(update);
-                try { await Task.Run(() => installer.Download(token)); }
+                try { await Task.Run(() => installer.Download(release.Item2)); }
                 finally { downloadingUpdate = false; }
                 pendingUpdate = installer;
                 Close();

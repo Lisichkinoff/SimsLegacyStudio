@@ -12,7 +12,8 @@ namespace SimsLegacy
 {
     internal static class Theme
     {
-        public const string DefaultTreeBackground = "#EAF7FE", DefaultTreeAccent = "#2B7EAB";
+        private const int DefaultTreeBackground = 0xEAF7FE;
+        private const string DefaultTreeAccent = "#2B7EAB";
         public static bool Dark { get; set; }
         public static Color Ink { get { return Choose(0x183148, 0xE3EDF6); } }
         public static Color Muted { get { return Choose(0x51697D, 0xA8BDCE); } }
@@ -26,7 +27,7 @@ namespace SimsLegacy
         public static Color SidebarText { get { return Choose(0xDBEAF5, 0xCEDDE9); } }
         public static Color Lime { get { return Color.FromArgb(193, 250, 107); } }
         public static Color Danger { get { return Choose(0xA7333F, 0xF5A2AE); } }
-        public static Color TreeBackground { get { return Choose(0xEAF7FE, 0x172837); } }
+        public static Color TreeBackground { get { return Choose(DefaultTreeBackground, 0x172837); } }
         public static Color TreeAccent { get { return Choose(0x2B7EAB, 0x76BDE0); } }
         public static Color ProfileGradientTop { get { return Choose(0xD7F0FD, 0x243A4B); } }
         public static Color ProfileGradientBottom { get { return Choose(0xEAFBDF, 0x213E37); } }
@@ -80,12 +81,26 @@ namespace SimsLegacy
                 DwmSetWindowAttribute(form.Handle, 19, ref value, sizeof(int));
             int round = 2;
             DwmSetWindowAttribute(form.Handle, 33, ref round, sizeof(int));
+            int border = ColorTranslator.ToWin32(Line);
+            DwmSetWindowAttribute(form.Handle, 34, ref border, sizeof(int));
         }
 
         internal static Color CanvasBackground(string value)
         {
-            return String.Equals(value, DefaultTreeBackground, StringComparison.OrdinalIgnoreCase) ?
-                TreeBackground : ColorOr(value, TreeBackground);
+            return CanvasBackground(ColorOr(value, TreeBackground));
+        }
+
+        internal static Color CanvasBackground(Color color)
+        {
+            if (color.ToArgb() == Rgb(DefaultTreeBackground).ToArgb()) return TreeBackground;
+            if (!Dark) return color;
+
+            const int maximumDarkLuminance = 66000;
+            int luminance = Luminance(color);
+            if (luminance <= maximumDarkLuminance) return color;
+            double scale = (double)maximumDarkLuminance / luminance;
+            return Color.FromArgb((int)Math.Round(color.R * scale), (int)Math.Round(color.G * scale),
+                (int)Math.Round(color.B * scale));
         }
 
         internal static Color CanvasAccent(string value)
@@ -96,8 +111,10 @@ namespace SimsLegacy
 
         internal static bool IsDark(Color color)
         {
-            return (color.R * 299 + color.G * 587 + color.B * 114) < 140000;
+            return Luminance(color) < 140000;
         }
+
+        private static int Luminance(Color color) { return color.R * 299 + color.G * 587 + color.B * 114; }
 
         internal static Color CanvasText(Color background, bool muted = false)
         {

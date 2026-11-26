@@ -46,21 +46,14 @@ namespace SimsLegacy
 
         internal sealed class AccessException : IOException
         {
-            internal AccessException() : base("Не удалось открыть закрытый релиз. Проверьте ключ обновлений.") { }
+            internal AccessException() : base("Не удалось открыть закрытый релиз. Проверьте доступ аккаунта GitHub.") { }
         }
 
-        internal static string LoadToken(string path)
+        internal static string LoadLegacyToken(string path)
         {
             if (!File.Exists(path)) return null;
             return Encoding.UTF8.GetString(ProtectedData.Unprotect(Convert.FromBase64String(File.ReadAllText(path)), TokenPurpose,
                 DataProtectionScope.CurrentUser));
-        }
-
-        internal static void SaveToken(string path, string token)
-        {
-            string encrypted = Convert.ToBase64String(ProtectedData.Protect(Encoding.UTF8.GetBytes(token), TokenPurpose,
-                DataProtectionScope.CurrentUser));
-            Storage.Write(path, encrypted);
         }
 
         internal static Update Check(string token)
