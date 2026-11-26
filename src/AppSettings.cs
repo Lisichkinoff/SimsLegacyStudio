@@ -89,7 +89,7 @@ namespace SimsLegacy
             if (file == null) return;
             if (!String.Equals(Path.GetExtension(file), ".save", StringComparison.OrdinalIgnoreCase))
             {
-                MessageBox.Show(this, "Для автоимпорта выберите основной файл сохранения .save.", Text,
+                AppNotice.Show(this, "Для автоимпорта выберите основной файл сохранения .save.", Text,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -101,7 +101,7 @@ namespace SimsLegacy
             catch (Exception ex)
             {
                 status.Text = "Не удалось прочитать сохранение";
-                MessageBox.Show(this, ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppNotice.Show(this, ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             finally { importing = false; }

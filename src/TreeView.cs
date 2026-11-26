@@ -195,7 +195,7 @@ namespace SimsLegacy
         private static readonly Font CaptionFont = Theme.Font(11);
         private static readonly Font EmptyFont = Theme.Display(27);
         private readonly ActionButton minus, plus, fit, percentage;
-        private readonly ToolTip hints = new ToolTip();
+        private readonly ToolTip hints = Ui.Hints();
         private readonly Dictionary<RectangleF, Link> relationBadges = new Dictionary<RectangleF, Link>();
         private readonly Dictionary<RectangleF, string> petBadges = new Dictionary<RectangleF, string>();
         private ILookup<string, Sim> pets;
@@ -235,9 +235,7 @@ namespace SimsLegacy
         private ActionButton Tool(string glyph, string label, Action action)
         {
             var button = new ActionButton("", glyph) { AccessibleName = label };
-            var tooltip = new ToolTip();
-            tooltip.SetToolTip(button, label);
-            button.Disposed += (s, e) => tooltip.Dispose();
+            hints.SetToolTip(button, label);
             button.Click += (s, e) => action();
             Controls.Add(button);
             return button;

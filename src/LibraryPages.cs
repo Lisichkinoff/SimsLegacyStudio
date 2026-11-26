@@ -22,26 +22,27 @@ namespace SimsLegacy
             var label = Ui.Label("Поиск по имени", 13, Theme.Muted, false, true);
             label.SetBounds(23, 15, 180, 24);
             alternative.Controls.Add(label);
-            var search = new TextBox { Font = Theme.Font(16), AccessibleName = "Поиск по имени",
-                BackColor = Theme.Paper, ForeColor = Theme.Ink };
-            search.SetBounds(23, 43, 286, 29);
-            alternative.Controls.Add(search);
+            var field = new AppField("Поиск по имени");
+            field.SetBounds(23, 43, 286, field.Height);
+            alternative.Controls.Add(field);
+            var search = field.Input;
             var list = new ListView { View = View.Details, FullRowSelect = true, MultiSelect = false,
-                BorderStyle = BorderStyle.None, Font = Theme.Font(15), BackColor = Theme.White, ForeColor = Theme.Ink };
+                BorderStyle = BorderStyle.None, Font = Theme.Font(15), BackColor = Theme.White, ForeColor = Theme.Ink, OwnerDraw = true };
             list.Columns.Add("Имя", 265); list.Columns.Add("Возраст", 155); list.Columns.Add("Роль в династии", 195);
-            if (Theme.Dark)
+            list.DrawColumnHeader += (s, e) =>
             {
-                list.OwnerDraw = true;
-                list.DrawColumnHeader += (s, e) =>
-                {
-                    using (var surface = new SolidBrush(Theme.Paper)) e.Graphics.FillRectangle(surface, e.Bounds);
-                    var bounds = Rectangle.Inflate(e.Bounds, -7, 0);
-                    TextRenderer.DrawText(e.Graphics, e.Header.Text, list.Font, bounds, Theme.Ink,
-                        TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
-                };
-                list.DrawItem += (s, e) => e.DrawDefault = true;
-                list.DrawSubItem += (s, e) => e.DrawDefault = true;
-            }
+                using (var surface = new SolidBrush(Theme.Paper)) e.Graphics.FillRectangle(surface, e.Bounds);
+                TextRenderer.DrawText(e.Graphics, e.Header.Text, list.Font, Rectangle.Inflate(e.Bounds, -9, 0), Theme.Ink,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            };
+            list.DrawSubItem += (s, e) =>
+            {
+                using (var surface = new SolidBrush(e.Item.Selected ? Theme.SoftGreen : Theme.White))
+                    e.Graphics.FillRectangle(surface, e.Bounds);
+                TextRenderer.DrawText(e.Graphics, e.SubItem.Text, list.Font, Rectangle.Inflate(e.Bounds, -9, 0),
+                    e.ColumnIndex == 0 ? Theme.Ink : Theme.Muted,
+                    TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+            };
             list.SetBounds(23, 94, alternative.Width - 46, alternative.Height - 164);
             list.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             alternative.Controls.Add(list);
@@ -139,7 +140,7 @@ namespace SimsLegacy
 
         private void DeleteTree(Dynasty entry)
         {
-            if (MessageBox.Show(this, "Удалить «" + entry.Title + "» из локальной библиотеки?", Text, MessageBoxButtons.YesNo,
+            if (AppNotice.Show(this, "Удалить «" + entry.Title + "» из локальной библиотеки?", Text, MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question) != DialogResult.Yes) return;
             library.Trees.Remove(entry);
             if (library.AutoImport != null && library.AutoImport.TreeId == entry.Id)
@@ -179,7 +180,7 @@ namespace SimsLegacy
                     else if (String.IsNullOrWhiteSpace(treeCopy.Id)) treeCopy.Id = Guid.NewGuid().ToString("N");
                     library.Trees.Add(treeCopy); OpenTree(treeCopy);
                 }
-                catch (Exception ex) { MessageBox.Show(this, "Не удалось открыть проект. " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+                catch (Exception ex) { AppNotice.Show(this, "Не удалось открыть проект. " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
             }
         }
 
@@ -195,7 +196,7 @@ namespace SimsLegacy
                 DefaultExt = "simslegacy", AddExtension = true, Title = "Сохранить файл проекта" })
                 if (picker.ShowDialog(this) == DialogResult.OK)
                     try { Storage.Write(picker.FileName, Storage.Json(entry)); status.Text = "Файл проекта сохранён"; }
-                    catch (Exception ex) { MessageBox.Show(this, "Не удалось сохранить проект. " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+                    catch (Exception ex) { AppNotice.Show(this, "Не удалось сохранить проект. " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
         }
 
         private void ExportMenu()
@@ -210,7 +211,7 @@ namespace SimsLegacy
                         DefaultExt = "png", AddExtension = true, Title = AnimalPage ? "Экспорт древа животных" : "Экспорт семейного древа" })
                         if (picker.ShowDialog(this) == DialogResult.OK)
                             try { canvas.ExportPng(picker.FileName); status.Text = "Изображение сохранено"; }
-                            catch (Exception ex) { MessageBox.Show(this, "Не удалось сохранить изображение. " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+                            catch (Exception ex) { AppNotice.Show(this, "Не удалось сохранить изображение. " + ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning); }
                 });
                 exportContextMenu.Items.Add("Файл проекта .simslegacy", null, (s, e) => SaveProject(tree));
             }
@@ -261,7 +262,7 @@ namespace SimsLegacy
             catch (Exception ex)
             {
                 status.Text = "Не удалось прочитать сохранение";
-                MessageBox.Show(this, ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppNotice.Show(this, ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             finally { importing = false; import.Enabled = true; }
@@ -329,14 +330,14 @@ namespace SimsLegacy
             catch (Exception ex)
             {
                 status.Text = "Не удалось прочитать отчёт";
-                MessageBox.Show(this, ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                AppNotice.Show(this, ex.Message, Text, MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             finally { importing = false; import.Enabled = true; }
             if (incoming.Sims.Count == 0)
             {
                 status.Text = "Карточки симов в файле не найдены";
-                MessageBox.Show(this, "Проверьте, что в файле есть имена симов. Подходят подробный отчёт Log Sim Details, отчёт get_pop с именами и экспорт MC Gedcom.",
+                AppNotice.Show(this, "Проверьте, что в файле есть имена симов. Подходят подробный отчёт Log Sim Details, отчёт get_pop с именами и экспорт MC Gedcom.",
                     Text, MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }
@@ -353,7 +354,7 @@ namespace SimsLegacy
             {
                 dialog.Note("Династия «" + target.Title + "». Найдено " + Plural(entries.Count, "сим", "сима", "симов") +
                     ", с чертами характера — " + entries.Count(s => !String.IsNullOrEmpty(s.Traits)) + ". Отметьте карточки для импорта.", 60);
-                var list = new CheckedListBox { Height = 254, BackColor = Theme.White, ForeColor = Theme.Ink, Font = Theme.Font(15),
+                var list = new AppChecklist { Height = 254, BackColor = Theme.White, ForeColor = Theme.Ink, Font = Theme.Font(15),
                     CheckOnClick = true, HorizontalScrollbar = true, AccessibleName = "Карточки для импорта" };
                 var search = dialog.Field("Поиск симов", "");
                 var selectedIds = new HashSet<string>(entries.Select(s => s.Id));

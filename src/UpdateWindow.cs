@@ -22,7 +22,11 @@ namespace SimsLegacy
             {
                 if (ConfigureUpdates()) CheckUpdates(true);
             }).Enabled = !checkingUpdates;
-            menu.Closed += (s, e) => menu.Dispose();
+            menu.Closed += (s, e) =>
+            {
+                if (IsHandleCreated && !IsDisposed) BeginInvoke(new Action(menu.Dispose));
+                else menu.Dispose();
+            };
             menu.Show(anchor, 0, anchor.Height);
         }
 
@@ -102,7 +106,7 @@ namespace SimsLegacy
                 }
                 string newVersion = update.Version.ToString(3);
                 status.Text = "Доступна версия " + newVersion;
-                if (MessageBox.Show(this, "Доступна версия " + newVersion +
+                if (AppNotice.Show(this, "Доступна версия " + newVersion +
                     ". Скачать обновление и перезапустить приложение?", "Обновления",
                     MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
 
@@ -151,7 +155,7 @@ namespace SimsLegacy
 
         private void ShowUpdateError(string message)
         {
-            MessageBox.Show(this, message, "Обновления", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            AppNotice.Show(this, message, "Обновления", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
     }
 }

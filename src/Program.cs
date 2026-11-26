@@ -35,7 +35,7 @@ namespace SimsLegacy
                 catch (AbandonedMutexException) { locked = true; }
                 if (!locked)
                 {
-                    MessageBox.Show("Sims Legacy Studio уже открыта.", "Sims Legacy Studio", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    AppNotice.Show("Sims Legacy Studio уже открыта.", "Sims Legacy Studio", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     return;
                 }
                 try
@@ -50,7 +50,7 @@ namespace SimsLegacy
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show("Не удалось открыть приложение. " + ex.Message, "Sims Legacy Studio", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    AppNotice.Show("Не удалось открыть приложение. " + ex.Message, "Sims Legacy Studio", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 }
                 finally { mutex.ReleaseMutex(); }
             }
@@ -70,7 +70,7 @@ namespace SimsLegacy
             {
                 string backup = path + ".backup-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N").Substring(0, 6);
                 File.Copy(path, backup);
-                MessageBox.Show("Библиотека не открылась. Резервная копия сохранена:\n" + backup,
+                AppNotice.Show("Библиотека не открылась. Резервная копия сохранена:\n" + backup,
                     "Sims Legacy Studio", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return new Library();
             }

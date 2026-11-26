@@ -8,7 +8,7 @@ using System.Windows.Forms;
 
 namespace SimsLegacy
 {
-    internal sealed partial class MainWindow : Form
+    internal sealed partial class MainWindow : AppWindow
     {
         private readonly Library library;
         private readonly string path;
@@ -17,7 +17,7 @@ namespace SimsLegacy
         private readonly ActionButton add, import, gameImport, export, previewButton, rename, undo, redo;
         private readonly ActionButton treeNav, animalNav, simNav, libraryNav, updatesNav;
         private readonly FamilyCanvas canvas;
-        private readonly ToolTip tips = new ToolTip();
+        private readonly ToolTip tips = Ui.Hints();
         private readonly List<string> undoStack = new List<string>(), redoStack = new List<string>();
         private ContextMenuStrip simContextMenu, importContextMenu, exportContextMenu;
         private Dynasty tree;
@@ -25,10 +25,10 @@ namespace SimsLegacy
         private bool preview, dirty, importing;
         private bool AnimalPage { get { return page == "animals"; } }
 
-        public MainWindow(Library value, string storagePath)
+        public MainWindow(Library value, string storagePath) : base(true, false)
         {
             library = value; path = storagePath;
-            Theme.Dark = library.DarkTheme;
+            Theme.Apply(this, library.DarkTheme);
             tree = library.Trees.FirstOrDefault(t => t.Id == library.Active) ?? library.Trees[0];
             selected = tree.Sims.FirstOrDefault(s => s.Role == "Наследница") != null
                 ? tree.Sims.First(s => s.Role == "Наследница").Id : null;
@@ -43,14 +43,14 @@ namespace SimsLegacy
             rail = new RoundedPanel(24) { BackColor = Theme.Sidebar };
             rail.Paint += PaintRail;
             Controls.Add(rail);
-            treeNav = Nav("Семейное древо", "tree", () => Navigate("tree"), 112);
-            animalNav = Nav("Древо животных", "paw", () => Navigate("animals"), 161);
-            simNav = Nav("Все симы", "people", () => Navigate("sims"), 210);
-            libraryNav = Nav("Мои династии", "folder", () => Navigate("library"), 259);
-            Nav("Оформление", "spark", () => Editors.Appearance(this, tree, a => Change(a)), 333);
-            Nav("Настройки", "tune", ShowSettings, 379);
-            Nav("Справка", "help", Help, 425);
-            updatesNav = Nav("Обновления", "import", () => ShowUpdatesMenu(updatesNav), 471);
+            treeNav = Nav("Семейное древо", "tree", () => Navigate("tree"), 21);
+            animalNav = Nav("Древо животных", "paw", () => Navigate("animals"), 70);
+            simNav = Nav("Все симы", "people", () => Navigate("sims"), 119);
+            libraryNav = Nav("Мои династии", "folder", () => Navigate("library"), 168);
+            Nav("Оформление", "spark", () => Editors.Appearance(this, tree, a => Change(a)), 243);
+            Nav("Настройки", "tune", ShowSettings, 289);
+            Nav("Справка", "help", Help, 335);
+            updatesNav = Nav("Обновления", "import", () => ShowUpdatesMenu(updatesNav), 381);
             masthead = new Panel { BackColor = Theme.Paper };
             Controls.Add(masthead);
             title = Ui.Label("", 35, Theme.Ink, true);
@@ -111,7 +111,7 @@ namespace SimsLegacy
                     e.Cancel = !StartUpdate();
                     return;
                 }
-                if (dirty && !Save() && MessageBox.Show(this, "Изменения не сохранены. Закрыть приложение?", Text,
+                if (dirty && !Save() && AppNotice.Show(this, "Изменения не сохранены. Закрыть приложение?", Text,
                     MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) e.Cancel = true;
             };
             autoImportTimer.Tick += (s, e) => CheckAutoImport();
@@ -125,21 +125,16 @@ namespace SimsLegacy
         {
             var g = e.Graphics;
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            if (rail.Height > 489)
+            if (rail.Height > 430)
             {
-                var lower = new Rectangle(0, 484, rail.Width, rail.Height - 484);
+                var lower = new Rectangle(0, 425, rail.Width, rail.Height - 425);
                 using (var gradient = new LinearGradientBrush(lower, Theme.Sidebar, Theme.RailGradient, 90f))
                     g.FillRectangle(gradient, lower);
             }
-            Theme.Fill(g, Color.FromArgb(33, 77, 101), new RectangleF(16, 25, 45, 45), 15);
-            Theme.Icon(g, "gem", new RectangleF(22, 31, 33, 33), Theme.Lime);
-            using (var brand = Theme.Display(21))
             using (var minor = Theme.Font(11))
             using (var division = new Pen(Color.FromArgb(50, 93, 117)))
             {
-                Theme.Text(g, "Sims Legacy", brand, Color.White, new RectangleF(68, 22, 138, 30));
-                Theme.Text(g, "THE SIMS 4", minor, Color.FromArgb(169, 210, 230), new RectangleF(70, 50, 130, 19));
-                g.DrawLine(division, 20, 322, rail.Width - 20, 322);
+                g.DrawLine(division, 20, 228, rail.Width - 20, 228);
                 g.DrawLine(division, 20, rail.Height - 69, rail.Width - 20, rail.Height - 69);
                 Theme.Icon(g, "check", new RectangleF(23, rail.Height - 49, 17, 17), Theme.Lime);
                 Theme.Text(g, "Локальная библиотека", minor, Theme.SidebarText, new RectangleF(47, rail.Height - 54, 155, 26));
@@ -176,8 +171,8 @@ namespace SimsLegacy
         private void LayoutWindow()
         {
             int left = 246, w = ClientSize.Width - left - 19;
-            rail.SetBounds(15, 15, 212, ClientSize.Height - 30); rail.Invalidate();
-            masthead.SetBounds(left, 6, w, 108);
+            rail.SetBounds(15, CaptionHeight + 12, 212, ClientSize.Height - CaptionHeight - 27); rail.Invalidate();
+            masthead.SetBounds(left, CaptionHeight + 1, w, 108);
             bool narrow = w < 920;
             int y = narrow ? 68 : 43;
             add.Location = new Point(w - add.Width, y);
@@ -188,8 +183,8 @@ namespace SimsLegacy
             int textWidth = page == "library" || narrow ? w : preview ? export.Left - 10 : rename.Left - 9;
             title.SetBounds(0, narrow ? 8 : 21, Math.Max(100, textWidth), 47);
             subtitle.SetBounds(2, narrow ? 53 : 69, Math.Max(180, rename.Left - 10), narrow ? 19 : 25);
-            int top = narrow ? 133 : 114;
-            masthead.Height = top - 10;
+            int top = CaptionHeight + (narrow ? 128 : 109);
+            masthead.Height = top - masthead.Top - 4;
             int h = ClientSize.Height - top - 41;
             workspace.SetBounds(left, top, w, h);
             int profileWidth = Math.Min(310, Math.Max(255, w / 4));
@@ -452,14 +447,7 @@ namespace SimsLegacy
 
         private ContextMenuStrip CreateContextMenu()
         {
-            return new ContextMenuStrip { Font = Font, BackColor = Theme.White, ForeColor = Theme.Ink,
-                Renderer = new ToolStripProfessionalRenderer(new MenuColors()) };
-        }
-
-        protected override void OnHandleCreated(EventArgs e)
-        {
-            base.OnHandleCreated(e);
-            Theme.StyleCaption(this);
+            return new AppMenu();
         }
 
         private void Relationships(Sim sim)
@@ -475,7 +463,7 @@ namespace SimsLegacy
 
         private void DeleteSim(Sim sim)
         {
-            if (MessageBox.Show(this, "Удалить карточку «" + sim.Name + "» и все её семейные связи?", Text,
+            if (AppNotice.Show(this, "Удалить карточку «" + sim.Name + "» и все её семейные связи?", Text,
                 MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
             Change(() => { tree.Sims.Remove(sim); tree.Links.RemoveAll(l => l.From == sim.Id || l.To == sim.Id); });
         }

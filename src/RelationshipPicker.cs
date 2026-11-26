@@ -59,12 +59,12 @@ namespace SimsLegacy
             var searchLabel = Ui.Label("Поиск по имени", 13, Theme.Ink, false, true);
             searchLabel.SetBounds(0, searchY, leftWidth, 21);
             content.Controls.Add(searchLabel);
-            search = new TextBox { Font = Theme.Font(15), ForeColor = Theme.Ink, BackColor = Theme.White,
-                AccessibleName = searchLabel.Text };
-            search.SetBounds(0, searchY + 23, leftWidth, 28);
-            content.Controls.Add(search);
+            var field = new AppField(searchLabel.Text);
+            field.SetBounds(0, searchY + 23, leftWidth, field.Height);
+            content.Controls.Add(field);
+            search = field.Input;
             create = Ui.Button("", "plus", leftWidth, 34, CreateMember);
-            create.SetBounds(0, search.Bottom + 7, leftWidth, 34);
+            create.SetBounds(0, field.Bottom + 7, leftWidth, 34);
             create.AlignLeft = true;
             content.Controls.Add(create);
             candidates = List("Карточки в династии", DrawCandidate);
@@ -119,7 +119,7 @@ namespace SimsLegacy
         {
             var list = new ListBox {
                 DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 43, IntegralHeight = false,
-                BackColor = Theme.White, ForeColor = Theme.Ink, BorderStyle = BorderStyle.FixedSingle, AccessibleName = name
+                BackColor = Theme.White, ForeColor = Theme.Ink, BorderStyle = BorderStyle.None, AccessibleName = name
             };
             list.DrawItem += draw;
             return list;
@@ -205,7 +205,7 @@ namespace SimsLegacy
             var otherLinks = previous == null ? Links : Links.Where(l => l != previous).ToList();
             if (!Family.CanLink(otherLinks, link.From, link.To, link.Kind, animalById))
             {
-                MessageBox.Show(this, "Такая связь уже есть или она образует цикл родства.", Text,
+                AppNotice.Show(this, "Такая связь уже есть или она образует цикл родства.", Text,
                     MessageBoxButtons.OK, MessageBoxIcon.Information);
                 return;
             }

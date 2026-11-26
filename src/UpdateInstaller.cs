@@ -74,7 +74,7 @@ namespace SimsLegacy
             }
             catch (Exception ex)
             {
-                MessageBox.Show("Не удалось установить обновление. " + ex.Message, "Sims Legacy Studio",
+                AppNotice.Show("Не удалось установить обновление. " + ex.Message, "Sims Legacy Studio",
                     MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }

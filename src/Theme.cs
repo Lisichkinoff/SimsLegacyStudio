@@ -51,7 +51,7 @@ namespace SimsLegacy
             form.SuspendLayout();
             try { Recolor(form, map); }
             finally { form.ResumeLayout(); }
-            StyleCaption(form);
+            if (form.IsHandleCreated) StyleCaption(form);
             form.Invalidate(true);
         }
 
@@ -65,6 +65,7 @@ namespace SimsLegacy
             {
                 if (map.TryGetValue(button.Surface.ToArgb(), out color)) button.Surface = color;
                 if (map.TryGetValue(button.Stroke.ToArgb(), out color)) button.Stroke = color;
+                if (map.TryGetValue(button.HoverSurface.ToArgb(), out color)) button.HoverSurface = color;
             }
             foreach (Control child in control.Controls) Recolor(child, map);
         }
@@ -77,6 +78,8 @@ namespace SimsLegacy
             int value = Dark ? 1 : 0;
             if (DwmSetWindowAttribute(form.Handle, 20, ref value, sizeof(int)) != 0)
                 DwmSetWindowAttribute(form.Handle, 19, ref value, sizeof(int));
+            int round = 2;
+            DwmSetWindowAttribute(form.Handle, 33, ref round, sizeof(int));
         }
 
         internal static Color CanvasBackground(string value)
@@ -264,6 +267,13 @@ namespace SimsLegacy
                         g.DrawEllipse(p, 4, 4, 11, 11); g.DrawLine(p, 14, 14, 20, 20); break;
                     case "close":
                         g.DrawLine(p, 6, 6, 18, 18); g.DrawLine(p, 18, 6, 6, 18); break;
+                    case "maximize":
+                        g.DrawRectangle(p, 5, 5, 14, 14); break;
+                    case "restore":
+                        g.DrawRectangle(p, 4, 8, 12, 12);
+                        g.DrawLines(p, new[] { new Point(8, 8), new Point(8, 4), new Point(20, 4), new Point(20, 16), new Point(16, 16) }); break;
+                    case "chevron":
+                        g.DrawLines(p, new[] { new Point(6, 10), new Point(12, 16), new Point(18, 10) }); break;
                     case "dots":
                         for (int x = 5; x <= 19; x += 7) g.FillEllipse(b, x - 1.5f, 10.5f, 3, 3); break;
                     case "arrow":
@@ -287,12 +297,14 @@ namespace SimsLegacy
         public override Color SeparatorLight { get { return Theme.White; } }
     }
 
-    internal sealed class ActionButton : Button
+    internal class ActionButton : Button
     {
         private bool hover;
         public Color Surface { get; set; }
         public Color Stroke { get; set; }
+        public Color HoverSurface { get; set; }
         public string Glyph;
+        public string TrailingGlyph;
         public bool AlignLeft;
 
         public ActionButton(string text, string glyph = null)
@@ -314,7 +326,8 @@ namespace SimsLegacy
             g.SmoothingMode = SmoothingMode.AntiAlias;
             var box = new RectangleF(1, 1, Width - 2, Height - 2);
             Color fill = hover && Enabled
-                ? Surface == Color.Transparent ? Theme.SidebarActive : ControlPaint.Light(Surface, .13f)
+                ? !HoverSurface.IsEmpty ? HoverSurface :
+                    Surface == Color.Transparent ? Theme.SidebarActive : ControlPaint.Light(Surface, .13f)
                 : Surface;
             Color ink = Enabled ? ForeColor : Color.FromArgb(147, 156, 148);
             float radius = Math.Min(16f, Height / 2f);
@@ -323,7 +336,9 @@ namespace SimsLegacy
             if (Focused && ShowFocusCues) Theme.Border(g, Theme.Green, RectangleF.Inflate(box, -3, -3), radius - 3);
             if (String.IsNullOrEmpty(Glyph))
             {
-                Theme.Text(g, Text, Font, ink, AlignLeft ? new RectangleF(13, 0, Width - 22, Height) : ClientRectangle,
+                if (TrailingGlyph != null)
+                    Theme.Icon(g, TrailingGlyph, new RectangleF(Width - 28, (Height - 16) / 2f, 16, 16), ink);
+                Theme.Text(g, Text, Font, ink, AlignLeft ? new RectangleF(13, 0, Width - (TrailingGlyph == null ? 22 : 43), Height) : ClientRectangle,
                     AlignLeft ? StringAlignment.Near : StringAlignment.Center);
                 return;
             }
