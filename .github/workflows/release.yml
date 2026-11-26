@@ -1,0 +1,37 @@
+name: Publish Windows release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+
+      - name: Build the tagged version
+        shell: pwsh
+        run: |
+          $version = (Get-Content -Raw -LiteralPath VERSION).Trim()
+          if ($env:GITHUB_REF_NAME -cne "v$version") {
+            throw 'The release tag must match VERSION.'
+          }
+          .\build.ps1
+          $binaryVersion = (Get-Item -LiteralPath SimsLegacyStudio.exe).VersionInfo.FileVersion
+          if ($binaryVersion -cne "$version.0") {
+            throw 'The executable version must match VERSION.'
+          }
+
+      - name: Publish EXE to GitHub Releases
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$env:GITHUB_REF_NAME" SimsLegacyStudio.exe --verify-tag --generate-notes --title "Sims Legacy Studio $env:GITHUB_REF_NAME"
