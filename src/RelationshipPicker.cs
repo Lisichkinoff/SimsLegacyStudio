@@ -59,7 +59,8 @@ namespace SimsLegacy
             var searchLabel = Ui.Label("Поиск по имени", 13, Theme.Ink, false, true);
             searchLabel.SetBounds(0, searchY, leftWidth, 21);
             content.Controls.Add(searchLabel);
-            search = new TextBox { Font = Theme.Font(15), ForeColor = Theme.Ink, AccessibleName = searchLabel.Text };
+            search = new TextBox { Font = Theme.Font(15), ForeColor = Theme.Ink, BackColor = Theme.White,
+                AccessibleName = searchLabel.Text };
             search.SetBounds(0, searchY + 23, leftWidth, 28);
             content.Controls.Add(search);
             create = Ui.Button("", "plus", leftWidth, 34, CreateMember);

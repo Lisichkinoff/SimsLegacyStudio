@@ -22,12 +22,26 @@ namespace SimsLegacy
             var label = Ui.Label("Поиск по имени", 13, Theme.Muted, false, true);
             label.SetBounds(23, 15, 180, 24);
             alternative.Controls.Add(label);
-            var search = new TextBox { Font = Theme.Font(16), AccessibleName = "Поиск по имени", BackColor = Theme.Paper };
+            var search = new TextBox { Font = Theme.Font(16), AccessibleName = "Поиск по имени",
+                BackColor = Theme.Paper, ForeColor = Theme.Ink };
             search.SetBounds(23, 43, 286, 29);
             alternative.Controls.Add(search);
             var list = new ListView { View = View.Details, FullRowSelect = true, MultiSelect = false,
                 BorderStyle = BorderStyle.None, Font = Theme.Font(15), BackColor = Theme.White, ForeColor = Theme.Ink };
             list.Columns.Add("Имя", 265); list.Columns.Add("Возраст", 155); list.Columns.Add("Роль в династии", 195);
+            if (Theme.Dark)
+            {
+                list.OwnerDraw = true;
+                list.DrawColumnHeader += (s, e) =>
+                {
+                    using (var surface = new SolidBrush(Theme.Paper)) e.Graphics.FillRectangle(surface, e.Bounds);
+                    var bounds = Rectangle.Inflate(e.Bounds, -7, 0);
+                    TextRenderer.DrawText(e.Graphics, e.Header.Text, list.Font, bounds, Theme.Ink,
+                        TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis);
+                };
+                list.DrawItem += (s, e) => e.DrawDefault = true;
+                list.DrawSubItem += (s, e) => e.DrawDefault = true;
+            }
             list.SetBounds(23, 94, alternative.Width - 46, alternative.Height - 164);
             list.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
             alternative.Controls.Add(list);
@@ -128,6 +142,11 @@ namespace SimsLegacy
             if (MessageBox.Show(this, "Удалить «" + entry.Title + "» из локальной библиотеки?", Text, MessageBoxButtons.YesNo,
                 MessageBoxIcon.Question) != DialogResult.Yes) return;
             library.Trees.Remove(entry);
+            if (library.AutoImport != null && library.AutoImport.TreeId == entry.Id)
+            {
+                library.AutoImport = null;
+                UpdateAutoImportTimer();
+            }
             foreach (var other in library.Trees)
                 foreach (var sim in other.Sims.Where(s => s.LinkedTree == entry.Id)) sim.LinkedTree = null;
             if (library.Trees.Count == 0) library.Trees.Add(new Dynasty());
@@ -210,21 +229,28 @@ namespace SimsLegacy
             importContextMenu.Show(import, new Point(0, import.Height + 5));
         }
 
-        private async void ImportSave()
+        private string SelectGameSave(bool currentSlotOnly, string previous = null)
         {
-            if (importing) return;
-            string file;
-            using (var picker = new OpenFileDialog { Filter = "Сохранения The Sims 4|*.save;*.save.ver0;*.save.ver1;*.save.ver2;*.save.ver3;*.save.ver4",
+            using (var picker = new OpenFileDialog { Filter = currentSlotOnly ? "Сохранения The Sims 4|*.save" :
+                "Сохранения The Sims 4|*.save;*.save.ver0;*.save.ver1;*.save.ver2;*.save.ver3;*.save.ver4",
                 Title = "Выбрать сохранение The Sims 4" })
             {
                 var documents = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
                 string[] locations = { Path.Combine(documents, "Electronic Arts", "The Sims 4", "saves"),
                     Path.Combine(documents, "Electronic Arts", "Les Sims 4", "saves"),
                     Path.Combine(documents, "Electronic Arts", "Die Sims 4", "saves") };
-                picker.InitialDirectory = locations.FirstOrDefault(Directory.Exists) ?? documents;
-                if (picker.ShowDialog(this) != DialogResult.OK) return;
-                file = picker.FileName;
+                picker.InitialDirectory = previous == null ? locations.FirstOrDefault(Directory.Exists) ?? documents :
+                    Path.GetDirectoryName(previous);
+                if (previous != null) picker.FileName = Path.GetFileName(previous);
+                return picker.ShowDialog(this) == DialogResult.OK ? picker.FileName : null;
             }
+        }
+
+        private async void ImportSave()
+        {
+            if (importing) return;
+            string file = SelectGameSave(false);
+            if (file == null) return;
 
             var target = tree;
             GameSave game;
@@ -241,8 +267,7 @@ namespace SimsLegacy
             finally { importing = false; import.Enabled = true; }
             if (tree != target) { status.Text = "Импорт отменён после смены династии"; return; }
 
-            var households = game.Households.OrderByDescending(h => h.Id == game.ActiveHousehold)
-                .ThenBy(h => h.Hidden).ThenByDescending(h => h.Player).ThenBy(h => h.Name).ToList();
+            var households = game.OrderedHouseholds();
             Dynasty incoming = null;
             bool newTree = true;
             using (var dialog = new Dialog("Импорт из The Sims 4", 550, 405, "Продолжить"))
@@ -251,12 +276,12 @@ namespace SimsLegacy
                 var options = households.Cast<object>().Concat(new object[] { "Все симы в сохранении" }).ToArray();
                 var group = dialog.Choice("Семья", options, 0);
                 var relatives = dialog.Toggle("Включить родственников из других семей", true);
-                relatives.Enabled = group.SelectedIndex < households.Count;
-                group.SelectedIndexChanged += (s, e) => relatives.Enabled = group.SelectedIndex < households.Count;
+                relatives.Enabled = group.SelectedIndex < households.Length;
+                group.SelectedIndexChanged += (s, e) => relatives.Enabled = group.SelectedIndex < households.Length;
                 var destination = dialog.Choice("Куда импортировать", new object[] { "Новая династия", "Текущая династия · " + target.Title }, 0);
                 dialog.Note("На следующем шаге можно убрать отдельных симов.", 34);
                 if (dialog.ShowDialog(this) != DialogResult.OK) { status.Text = "Импорт отменён"; return; }
-                var household = group.SelectedIndex < households.Count ? households[group.SelectedIndex] : null;
+                var household = group.SelectedIndex < households.Length ? households[group.SelectedIndex] : null;
                 incoming = game.CreateTree(household, relatives.Checked);
                 newTree = destination.SelectedIndex == 0;
             }

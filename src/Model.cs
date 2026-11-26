@@ -102,7 +102,20 @@ namespace SimsLegacy
     {
         public List<Dynasty> Trees { get; set; }
         public string Active { get; set; }
+        public bool DarkTheme { get; set; }
+        public AutoImportSettings AutoImport { get; set; }
         public Library() { Trees = new List<Dynasty>(); }
+    }
+
+    public sealed class AutoImportSettings
+    {
+        public bool Enabled { get; set; }
+        public string FilePath { get; set; }
+        public string TreeId { get; set; }
+        public ulong HouseholdId { get; set; }
+        public string HouseholdName { get; set; }
+        public bool IncludeRelatives { get; set; }
+        public List<string> SeenGameIds { get; set; }
     }
 
     internal static class Storage

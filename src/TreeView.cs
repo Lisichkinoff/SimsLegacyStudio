@@ -255,7 +255,7 @@ namespace SimsLegacy
             petBadges.Clear();
             hints.SetToolTip(this, null);
             lastHint = null;
-            BackColor = Theme.ColorOr(tree.Background, Theme.TreeBackground);
+            BackColor = Theme.CanvasBackground(tree.Background);
             if (reset) Fit(); else Invalidate();
         }
 
@@ -414,9 +414,10 @@ namespace SimsLegacy
             if (layout.Members.Count == 0)
             {
                 Theme.Icon(g, animals ? "paw" : "tree", new RectangleF(Center.X - 22, Center.Y - 82, 44, 44), Theme.Green);
-                Theme.Text(g, "Древо пока пустое", EmptyFont, Theme.Ink,
+                Theme.Text(g, "Древо пока пустое", EmptyFont, Theme.CanvasText(BackColor),
                     new RectangleF(0, Center.Y - 27, Width, 38), StringAlignment.Center);
-                Theme.Text(g, animals ? "Добавьте первое животное." : "Добавьте первого сима или импортируйте файл MCCC.", NameFont, Theme.Muted,
+                Theme.Text(g, animals ? "Добавьте первое животное." : "Добавьте первого сима или импортируйте сохранение.",
+                    NameFont, Theme.CanvasText(BackColor, true),
                     new RectangleF(0, Center.Y + 17, Width, 26), StringAlignment.Center);
                 return;
             }
@@ -432,17 +433,18 @@ namespace SimsLegacy
             g.SmoothingMode = SmoothingMode.AntiAlias;
             g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             if (area.Width <= 0 || area.Height <= 0) return;
-            using (var wash = new LinearGradientBrush(area, ControlPaint.Light(color, .26f), color, 68f))
+            Color highlight = Theme.IsDark(color) ? ControlPaint.Light(color, .05f) : ControlPaint.Light(color, .26f);
+            using (var wash = new LinearGradientBrush(area, highlight, color, 68f))
                 g.FillRectangle(wash, area);
             var image = Photos.Read(tree.Backdrop);
             if (image != null)
             {
                 Photos.Cover(g, image, area);
-                using (var wash = new SolidBrush(Color.FromArgb(125, color))) g.FillRectangle(wash, area);
+                using (var wash = new SolidBrush(Color.FromArgb(Theme.IsDark(color) ? 190 : 125, color))) g.FillRectangle(wash, area);
             }
             if (tree.Grid)
             {
-                using (var dot = new SolidBrush(Color.FromArgb(45, Theme.ColorOr(tree.Accent, Theme.TreeAccent))))
+                using (var dot = new SolidBrush(Color.FromArgb(45, Theme.CanvasAccent(tree.Accent))))
                     for (int x = 15; x < area.Width; x += 23)
                         for (int y = 15; y < area.Height; y += 23) g.FillEllipse(dot, x, y, 1.9f, 1.9f);
             }
@@ -450,7 +452,7 @@ namespace SimsLegacy
 
         private void DrawTree(Graphics g, string selected)
         {
-            Color accent = Theme.ColorOr(tree.Accent, Theme.TreeAccent);
+            Color accent = Theme.CanvasAccent(tree.Accent);
             var parentGroups = layout.Links.Where(l => l.Kind == "parent").GroupBy(l => l.To)
                 .GroupBy(group => String.Join("|", group.Select(l => l.From).OrderBy(id => id).ToArray()));
             var pairs = new HashSet<string>(layout.Links.Where(l => Family.IsCouple(l.Kind) && !Family.IsFormer(l.Kind))
@@ -555,11 +557,11 @@ namespace SimsLegacy
                 float labelWidth = former ? 122 : 142;
                 var title = new RectangleF(point.X - labelWidth / 2, top + size + 7, labelWidth, 18);
                 var detail = new RectangleF(title.X, title.Bottom, title.Width, 16);
-                Theme.Text(g, sim.Name, former ? FormerNameFont : NameFont, Theme.Ink, title, StringAlignment.Center);
+                Theme.Text(g, sim.Name, former ? FormerNameFont : NameFont, Theme.CanvasText(BackColor), title, StringAlignment.Center);
                 if (!former)
                     Theme.Text(g, sim.Deceased ? (animals ? "Умерло" : "Умерший сим") :
                         (animals ? sim.Species : String.IsNullOrWhiteSpace(sim.Role) ? sim.Age : sim.Role),
-                        CaptionFont, Theme.Muted, detail, StringAlignment.Center);
+                        CaptionFont, Theme.CanvasText(BackColor, true), detail, StringAlignment.Center);
             }
         }
 
@@ -586,7 +588,7 @@ namespace SimsLegacy
             using (var g = Graphics.FromImage(bitmap))
             {
                 PaintBackground(g, new Rectangle(0, 0, width, height), BackColor);
-                Theme.Text(g, animals ? tree.Title + " · Древо животных" : tree.Title, EmptyFont, Theme.Ink,
+                Theme.Text(g, animals ? tree.Title + " · Древо животных" : tree.Title, EmptyFont, Theme.CanvasText(BackColor),
                     new RectangleF(12, 12, width - 24, 46), StringAlignment.Center);
                 g.TranslateTransform((width - bounds.Width * scale) / 2 - bounds.Left * scale, 70 - bounds.Top * scale);
                 g.ScaleTransform(scale, scale);

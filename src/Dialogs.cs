@@ -100,8 +100,24 @@ namespace SimsLegacy
             Caption(label);
             var input = new ComboBox {
                 DropDownStyle = ComboBoxStyle.DropDownList, Font = Theme.Font(15), ForeColor = Theme.Ink,
-                BackColor = Theme.White, AccessibleName = label
+                BackColor = Theme.White, FlatStyle = FlatStyle.Flat, AccessibleName = label
             };
+            if (Theme.Dark)
+            {
+                input.DrawMode = DrawMode.OwnerDrawFixed;
+                input.ItemHeight = 22;
+                input.DrawItem += (s, e) =>
+                {
+                    bool selected = (e.State & DrawItemState.Selected) != 0 && (e.State & DrawItemState.ComboBoxEdit) == 0;
+                    using (var surface = new SolidBrush(selected ? Theme.SidebarActive : Theme.White))
+                        e.Graphics.FillRectangle(surface, e.Bounds);
+                    if (e.Index >= 0)
+                        TextRenderer.DrawText(e.Graphics, input.GetItemText(input.Items[e.Index]), input.Font,
+                            Rectangle.Inflate(e.Bounds, -4, 0), Theme.Ink,
+                            TextFormatFlags.VerticalCenter | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+                    e.DrawFocusRectangle();
+                };
+            }
             input.Items.AddRange(options);
             if (index >= 0 && index < options.Length) input.SelectedIndex = index;
             Add(input);
@@ -113,6 +129,12 @@ namespace SimsLegacy
             var check = new CheckBox { Text = label, Checked = value, ForeColor = Theme.Ink, Height = 26, Font = Theme.Font(14) };
             Add(check, 4);
             return check;
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Theme.StyleCaption(this);
         }
     }
 
@@ -171,7 +193,8 @@ namespace SimsLegacy
                 dialog.Caption("Фотографии");
                 var gallery = new FlowLayoutPanel { Height = 79, WrapContents = false, AutoScroll = true };
                 dialog.Add(gallery, 3);
-                var photos = new ListBox { Height = 85, Font = Theme.Font(14), BackColor = Theme.White, AccessibleName = "Галерея фотографий" };
+                var photos = new ListBox { Height = 85, Font = Theme.Font(14), BackColor = Theme.White,
+                    ForeColor = Theme.Ink, AccessibleName = "Галерея фотографий" };
                 dialog.Add(photos);
                 Action refreshPhotos = () =>
                 {
@@ -238,6 +261,7 @@ namespace SimsLegacy
                 ShowInTaskbar = false, KeyPreview = true })
             {
                 if (image == null) return;
+                form.HandleCreated += (s, e) => Theme.StyleCaption(form);
                 form.Controls.Add(new PictureBox { Dock = DockStyle.Fill, Image = image, SizeMode = PictureBoxSizeMode.Zoom });
                 form.KeyDown += (s, e) => { if (e.KeyCode == Keys.Escape) form.Close(); };
                 form.ShowDialog(owner);
@@ -268,32 +292,47 @@ namespace SimsLegacy
                 var grid = dialog.Toggle("Точечная сетка на фоне", tree.Grid);
                 var labels = dialog.Toggle("Имена и подписи", tree.Labels);
                 dialog.Caption("Палитра фона");
-                Color background = Theme.ColorOr(tree.Background, Theme.Paper), accent = Theme.ColorOr(tree.Accent, Theme.Green);
+                Color background = Theme.CanvasBackground(tree.Background), accent = Theme.CanvasAccent(tree.Accent);
+                bool backgroundChanged = false, accentChanged = false;
                 string picture = tree.Backdrop;
                 var colors = new FlowLayoutPanel { Height = 42, WrapContents = false };
                 var custom = Ui.Button("Свой цвет", null, 115, 34, () =>
                 {
                     using (var picker = new ColorDialog { Color = background, FullOpen = true })
-                        if (picker.ShowDialog(dialog) == DialogResult.OK) background = picker.Color;
+                        if (picker.ShowDialog(dialog) == DialogResult.OK) { background = picker.Color; backgroundChanged = true; }
                 });
-                string[] palette = { "#EAF7FE", "#E5F7ED", "#FBEFE9", "#F1EDFD", "#F5F4EC" };
+                string[] palette = Theme.Dark ? new[] { "#172837", "#1E3732", "#3D2B2A", "#322C44", "#35332B" } :
+                    new[] { "#EAF7FE", "#E5F7ED", "#FBEFE9", "#F1EDFD", "#F5F4EC" };
                 string[] names = { "Небо", "Мята", "Персик", "Лаванда", "Лён" };
                 for (int i = 0; i < palette.Length; i++)
                 {
                     Color color = ColorTranslator.FromHtml(palette[i]);
-                    var swatch = Ui.Button("", null, 40, 34, () => { background = color; custom.Surface = color; custom.Invalidate(); });
+                    var swatch = Ui.Button("", null, 40, 34, () =>
+                    {
+                        background = color;
+                        backgroundChanged = true;
+                        custom.Surface = color;
+                        custom.ForeColor = Theme.CanvasText(color);
+                        custom.Invalidate();
+                    });
                     swatch.Surface = color;
                     swatch.AccessibleName = names[i];
                     colors.Controls.Add(swatch);
                 }
                 custom.Surface = background;
-                custom.Click += (s, e) => { custom.Surface = background; custom.Invalidate(); };
+                custom.ForeColor = Theme.CanvasText(background);
+                custom.Click += (s, e) =>
+                {
+                    custom.Surface = background;
+                    custom.ForeColor = Theme.CanvasText(background);
+                    custom.Invalidate();
+                };
                 colors.Controls.Add(custom);
                 dialog.Add(colors);
                 var accentButton = Ui.Button("Цвет линий и акцента", "tune", 200, 36, () =>
                 {
                     using (var picker = new ColorDialog { Color = accent, FullOpen = true })
-                        if (picker.ShowDialog(dialog) == DialogResult.OK) accent = picker.Color;
+                        if (picker.ShowDialog(dialog) == DialogResult.OK) { accent = picker.Color; accentChanged = true; }
                 });
                 dialog.Add(accentButton);
                 var add = Ui.Button(String.IsNullOrEmpty(picture) ? "Выбрать фоновое изображение" : "Заменить фоновое изображение", "import", 270, 38, () =>
@@ -311,7 +350,9 @@ namespace SimsLegacy
                     change(() =>
                     {
                         tree.Layout = layout.SelectedIndex; tree.Grid = grid.Checked; tree.Labels = labels.Checked;
-                        tree.Background = ColorTranslator.ToHtml(background); tree.Accent = ColorTranslator.ToHtml(accent); tree.Backdrop = picture;
+                        if (backgroundChanged) tree.Background = ColorTranslator.ToHtml(background);
+                        if (accentChanged) tree.Accent = ColorTranslator.ToHtml(accent);
+                        tree.Backdrop = picture;
                     });
             }
         }

@@ -32,7 +32,8 @@ namespace SimsLegacy
             {
                 dialog.Note("Для обновлений из закрытого репозитория " + AppUpdates.Repository +
                     " создайте fine-grained token. В Repository access выберите этот репозиторий, а в Permissions укажите Contents → Read-only.", 73);
-                var link = new LinkLabel { Text = "Создать ключ на GitHub", Height = 25, Font = Theme.Font(14) };
+                var link = new LinkLabel { Text = "Создать ключ на GitHub", Height = 25, Font = Theme.Font(14),
+                    LinkColor = Theme.TreeAccent, VisitedLinkColor = Theme.TreeAccent, ActiveLinkColor = Theme.Green };
                 link.LinkClicked += (s, e) =>
                 {
                     try

@@ -11,9 +11,9 @@ namespace SimsLegacy
         private const uint ExtendedSize = 0x80000000;
         private const int MaxResource = 384 * 1024 * 1024;
 
-        public static IEnumerable<byte[]> ReadGameData(string path)
+        public static IEnumerable<byte[]> ReadGameData(string path, FileShare share)
         {
-            using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read))
+            using (var stream = File.Open(path, FileMode.Open, FileAccess.Read, share))
             using (var reader = new BinaryReader(stream))
             {
                 if (stream.Length < 96 || reader.ReadUInt32() != 0x46504244 || reader.ReadUInt32() != 2)

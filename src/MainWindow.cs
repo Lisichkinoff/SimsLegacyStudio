@@ -28,6 +28,7 @@ namespace SimsLegacy
         public MainWindow(Library value, string storagePath)
         {
             library = value; path = storagePath;
+            Theme.Dark = library.DarkTheme;
             tree = library.Trees.FirstOrDefault(t => t.Id == library.Active) ?? library.Trees[0];
             selected = tree.Sims.FirstOrDefault(s => s.Role == "Наследница") != null
                 ? tree.Sims.First(s => s.Role == "Наследница").Id : null;
@@ -46,9 +47,10 @@ namespace SimsLegacy
             animalNav = Nav("Древо животных", "paw", () => Navigate("animals"), 161);
             simNav = Nav("Все симы", "people", () => Navigate("sims"), 210);
             libraryNav = Nav("Мои династии", "folder", () => Navigate("library"), 259);
-            Nav("Оформление", "tune", () => Editors.Appearance(this, tree, a => Change(a)), 348);
-            Nav("Справка", "help", Help, 397);
-            updatesNav = Nav("Обновления", "import", () => ShowUpdatesMenu(updatesNav), 446);
+            Nav("Оформление", "spark", () => Editors.Appearance(this, tree, a => Change(a)), 333);
+            Nav("Настройки", "tune", ShowSettings, 379);
+            Nav("Справка", "help", Help, 425);
+            updatesNav = Nav("Обновления", "import", () => ShowUpdatesMenu(updatesNav), 471);
             masthead = new Panel { BackColor = Theme.Paper };
             Controls.Add(masthead);
             title = Ui.Label("", 35, Theme.Ink, true);
@@ -112,7 +114,8 @@ namespace SimsLegacy
                 if (dirty && !Save() && MessageBox.Show(this, "Изменения не сохранены. Закрыть приложение?", Text,
                     MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes) e.Cancel = true;
             };
-            Shown += (s, e) => CheckUpdates(false);
+            autoImportTimer.Tick += (s, e) => CheckAutoImport();
+            Shown += (s, e) => { CheckUpdates(false); UpdateAutoImportTimer(); };
             ResumeLayout();
             LayoutWindow();
             RefreshTree(true);
@@ -125,7 +128,7 @@ namespace SimsLegacy
             if (rail.Height > 489)
             {
                 var lower = new Rectangle(0, 484, rail.Width, rail.Height - 484);
-                using (var gradient = new LinearGradientBrush(lower, Theme.Sidebar, Color.FromArgb(17, 67, 88), 90f))
+                using (var gradient = new LinearGradientBrush(lower, Theme.Sidebar, Theme.RailGradient, 90f))
                     g.FillRectangle(gradient, lower);
             }
             Theme.Fill(g, Color.FromArgb(33, 77, 101), new RectangleF(16, 25, 45, 45), 15);
@@ -134,7 +137,7 @@ namespace SimsLegacy
             using (var minor = Theme.Font(11))
             using (var division = new Pen(Color.FromArgb(50, 93, 117)))
             {
-                Theme.Text(g, "Sims Legacy", brand, Theme.White, new RectangleF(68, 22, 138, 30));
+                Theme.Text(g, "Sims Legacy", brand, Color.White, new RectangleF(68, 22, 138, 30));
                 Theme.Text(g, "THE SIMS 4", minor, Color.FromArgb(169, 210, 230), new RectangleF(70, 50, 130, 19));
                 g.DrawLine(division, 20, 322, rail.Width - 20, 322);
                 g.DrawLine(division, 20, rail.Height - 69, rail.Width - 20, rail.Height - 69);
@@ -298,7 +301,7 @@ namespace SimsLegacy
             avatarRow.Paint += (s, e) =>
             {
                 if (avatarRow.ClientSize.Width == 0) return;
-                using (var brush = new LinearGradientBrush(avatarRow.ClientRectangle, Color.FromArgb(215, 240, 253), Color.FromArgb(234, 251, 223), 25))
+                using (var brush = new LinearGradientBrush(avatarRow.ClientRectangle, Theme.ProfileGradientTop, Theme.ProfileGradientBottom, 25))
                     e.Graphics.FillRectangle(brush, avatarRow.ClientRectangle);
                 e.Graphics.SmoothingMode = SmoothingMode.AntiAlias;
                 Theme.Fill(e.Graphics, Theme.White, new RectangleF((width - 89) / 2f, 10, 89, 89), 45);
@@ -449,7 +452,14 @@ namespace SimsLegacy
 
         private ContextMenuStrip CreateContextMenu()
         {
-            return new ContextMenuStrip { Font = Font, BackColor = Theme.White, ForeColor = Theme.Ink };
+            return new ContextMenuStrip { Font = Font, BackColor = Theme.White, ForeColor = Theme.Ink,
+                Renderer = new ToolStripProfessionalRenderer(new MenuColors()) };
+        }
+
+        protected override void OnHandleCreated(EventArgs e)
+        {
+            base.OnHandleCreated(e);
+            Theme.StyleCaption(this);
         }
 
         private void Relationships(Sim sim)
@@ -542,6 +552,7 @@ namespace SimsLegacy
         {
             if (disposing)
             {
+                autoImportTimer.Dispose();
                 if (simContextMenu != null) simContextMenu.Dispose();
                 if (importContextMenu != null) importContextMenu.Dispose();
                 if (exportContextMenu != null) exportContextMenu.Dispose();

@@ -38,12 +38,12 @@ namespace SimsLegacy
         private readonly HashSet<Connection> modern = new HashSet<Connection>();
         private readonly HashSet<ulong> modernChildren = new HashSet<ulong>();
 
-        public static GameSave Open(string path)
+        public static GameSave Open(string path, FileShare share = FileShare.Read)
         {
             var result = new GameSave { Title = Path.GetFileNameWithoutExtension(path) };
             var graphs = new List<SaveFields>();
             var buffers = new List<byte[]>();
-            foreach (byte[] bytes in SavePackage.ReadGameData(path))
+            foreach (byte[] bytes in SavePackage.ReadGameData(path, share))
             {
                 buffers.Add(bytes);
                 var root = new SaveFields(bytes);
@@ -283,6 +283,12 @@ namespace SimsLegacy
                 foreach (ulong next in neighbors) if (seen.Add(next)) queue.Enqueue(next);
             }
             return seen;
+        }
+
+        public SaveHousehold[] OrderedHouseholds()
+        {
+            return Households.OrderByDescending(h => h.Id == ActiveHousehold)
+                .ThenBy(h => h.Hidden).ThenByDescending(h => h.Player).ThenBy(h => h.Name).ToArray();
         }
 
         public Dynasty CreateTree(SaveHousehold household, bool includeRelatives)

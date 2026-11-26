@@ -5,26 +5,101 @@ using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.IO;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace SimsLegacy
 {
     internal static class Theme
     {
-        public static readonly Color Ink = Color.FromArgb(24, 49, 72);
-        public static readonly Color Muted = Color.FromArgb(81, 105, 125);
-        public static readonly Color Paper = Color.FromArgb(240, 247, 252);
-        public static readonly Color White = Color.White;
-        public static readonly Color Line = Color.FromArgb(211, 228, 240);
-        public static readonly Color Green = Color.FromArgb(16, 111, 74);
-        public static readonly Color SoftGreen = Color.FromArgb(226, 248, 233);
-        public static readonly Color Sidebar = Color.FromArgb(15, 47, 77);
-        public static readonly Color SidebarActive = Color.FromArgb(41, 81, 108);
-        public static readonly Color SidebarText = Color.FromArgb(219, 234, 245);
-        public static readonly Color Lime = Color.FromArgb(193, 250, 107);
-        public static readonly Color Danger = Color.FromArgb(167, 51, 63);
-        public static readonly Color TreeBackground = Color.FromArgb(234, 247, 254);
-        public static readonly Color TreeAccent = Color.FromArgb(43, 126, 171);
+        public const string DefaultTreeBackground = "#EAF7FE", DefaultTreeAccent = "#2B7EAB";
+        public static bool Dark { get; set; }
+        public static Color Ink { get { return Choose(0x183148, 0xE3EDF6); } }
+        public static Color Muted { get { return Choose(0x51697D, 0xA8BDCE); } }
+        public static Color Paper { get { return Choose(0xF0F7FC, 0x111C28); } }
+        public static Color White { get { return Choose(0xFFFFFF, 0x1A2A39); } }
+        public static Color Line { get { return Choose(0xD3E4F0, 0x354E62); } }
+        public static Color Green { get { return Choose(0x106F4A, 0x8CDCB4); } }
+        public static Color SoftGreen { get { return Choose(0xE2F8E9, 0x203C36); } }
+        public static Color Sidebar { get { return Choose(0x0F2F4D, 0x0D1622); } }
+        public static Color SidebarActive { get { return Choose(0x29516C, 0x23394C); } }
+        public static Color SidebarText { get { return Choose(0xDBEAF5, 0xCEDDE9); } }
+        public static Color Lime { get { return Color.FromArgb(193, 250, 107); } }
+        public static Color Danger { get { return Choose(0xA7333F, 0xF5A2AE); } }
+        public static Color TreeBackground { get { return Choose(0xEAF7FE, 0x172837); } }
+        public static Color TreeAccent { get { return Choose(0x2B7EAB, 0x76BDE0); } }
+        public static Color ProfileGradientTop { get { return Choose(0xD7F0FD, 0x243A4B); } }
+        public static Color ProfileGradientBottom { get { return Choose(0xEAFBDF, 0x213E37); } }
+        public static Color RailGradient { get { return Choose(0x114358, 0x162936); } }
+
+        private static Color Rgb(int value) { return Color.FromArgb(unchecked((int)0xFF000000) | value); }
+        private static Color Choose(int light, int dark) { return Rgb(Dark ? dark : light); }
+
+        private static Color[] InterfaceColors()
+        {
+            return new[] { Ink, Muted, Paper, White, Line, Green, SoftGreen, Sidebar, SidebarActive, SidebarText, Danger };
+        }
+
+        internal static void Apply(Form form, bool dark)
+        {
+            if (Dark == dark) return;
+            var previous = InterfaceColors();
+            Dark = dark;
+            var current = InterfaceColors();
+            var map = new Dictionary<int, Color>();
+            for (int i = 0; i < previous.Length; i++) map.Add(previous[i].ToArgb(), current[i]);
+            form.SuspendLayout();
+            try { Recolor(form, map); }
+            finally { form.ResumeLayout(); }
+            StyleCaption(form);
+            form.Invalidate(true);
+        }
+
+        private static void Recolor(Control control, Dictionary<int, Color> map)
+        {
+            Color color;
+            if (map.TryGetValue(control.BackColor.ToArgb(), out color)) control.BackColor = color;
+            if (map.TryGetValue(control.ForeColor.ToArgb(), out color)) control.ForeColor = color;
+            var button = control as ActionButton;
+            if (button != null)
+            {
+                if (map.TryGetValue(button.Surface.ToArgb(), out color)) button.Surface = color;
+                if (map.TryGetValue(button.Stroke.ToArgb(), out color)) button.Stroke = color;
+            }
+            foreach (Control child in control.Controls) Recolor(child, map);
+        }
+
+        [DllImport("dwmapi.dll")]
+        private static extern int DwmSetWindowAttribute(IntPtr handle, int attribute, ref int value, int size);
+
+        internal static void StyleCaption(Form form)
+        {
+            int value = Dark ? 1 : 0;
+            if (DwmSetWindowAttribute(form.Handle, 20, ref value, sizeof(int)) != 0)
+                DwmSetWindowAttribute(form.Handle, 19, ref value, sizeof(int));
+        }
+
+        internal static Color CanvasBackground(string value)
+        {
+            return String.Equals(value, DefaultTreeBackground, StringComparison.OrdinalIgnoreCase) ?
+                TreeBackground : ColorOr(value, TreeBackground);
+        }
+
+        internal static Color CanvasAccent(string value)
+        {
+            return String.Equals(value, DefaultTreeAccent, StringComparison.OrdinalIgnoreCase) ?
+                TreeAccent : ColorOr(value, TreeAccent);
+        }
+
+        internal static bool IsDark(Color color)
+        {
+            return (color.R * 299 + color.G * 587 + color.B * 114) < 140000;
+        }
+
+        internal static Color CanvasText(Color background, bool muted = false)
+        {
+            return IsDark(background) ? Rgb(muted ? 0xB3C8D9 : 0xF2F7FB) : Rgb(muted ? 0x51697D : 0x183148);
+        }
 
         public static Font Font(float size, FontStyle style = FontStyle.Regular)
         {
@@ -199,16 +274,31 @@ namespace SimsLegacy
         }
     }
 
+    internal sealed class MenuColors : ProfessionalColorTable
+    {
+        public override Color ToolStripDropDownBackground { get { return Theme.White; } }
+        public override Color ImageMarginGradientBegin { get { return Theme.White; } }
+        public override Color ImageMarginGradientMiddle { get { return Theme.White; } }
+        public override Color ImageMarginGradientEnd { get { return Theme.White; } }
+        public override Color MenuBorder { get { return Theme.Line; } }
+        public override Color MenuItemBorder { get { return Theme.Line; } }
+        public override Color MenuItemSelected { get { return Theme.SoftGreen; } }
+        public override Color SeparatorDark { get { return Theme.Line; } }
+        public override Color SeparatorLight { get { return Theme.White; } }
+    }
+
     internal sealed class ActionButton : Button
     {
         private bool hover;
-        public Color Surface = Theme.White;
-        public Color Stroke = Theme.Line;
+        public Color Surface { get; set; }
+        public Color Stroke { get; set; }
         public string Glyph;
         public bool AlignLeft;
 
         public ActionButton(string text, string glyph = null)
         {
+            Surface = Theme.White;
+            Stroke = Theme.Line;
             Text = text; Glyph = glyph; FlatStyle = FlatStyle.Flat; FlatAppearance.BorderSize = 0;
             Font = Theme.Font(13, FontStyle.Bold); ForeColor = Theme.Ink; Cursor = Cursors.Hand;
             TabStop = true;
@@ -346,7 +436,7 @@ namespace SimsLegacy
                 using (var g = Graphics.FromImage(result))
                 using (var buffer = new MemoryStream())
                 {
-                    g.Clear(Theme.White);
+                    g.Clear(Color.White);
                     g.InterpolationMode = InterpolationMode.HighQualityBicubic;
                     g.DrawImage(original, 0, 0, result.Width, result.Height);
                     result.Save(buffer, ImageFormat.Jpeg);
